@@ -1,121 +1,131 @@
-import turtle
-from pathlib import Path
-
+import streamlit as st
 import cv2
 import numpy as np
-from PIL import Image
+import random
+from PIL import Image, ImageDraw
+from io import BytesIO
 
-IMAGE_PATH = "IMG_123.jpeg"
+st.set_page_config(
+    page_title="Facial Expression Dot Art",
+    page_icon="🎨",
+    layout="centered",
+)
 
-# Image settings
-MAX_WIDTH = 450
-MAX_HEIGHT = 600
-
-# Dot-art settings
-DOT_SPACING = 4
-MIN_DOT_SIZE = 1
-MAX_DOT_SIZE = 5
-
-# Facial detail settings
-EDGE_THRESHOLD = 65
-FEATURE_DOT_SIZE = 2
-FEATURE_DENSITY = 2
-
-DRAW_SPEED = 0
+st.title("🎨 Facial Expression Dot Art")
+st.write(
+    "Upload a portrait to create a dot-art sketch "
+    "with highlighted eyes, eyebrows, nose, lips, and outlines."
+)
 
 
-def main():
-    image_path = Path(IMAGE_PATH)
-
-    if not image_path.exists():
-        raise FileNotFoundError(
-            f"Image not found: {image_path.resolve()}"
-        )
-
-    image = Image.open(image_path).convert("RGB")
-    image.thumbnail((MAX_WIDTH, MAX_HEIGHT))
+def make_dot_art(image, spacing=4, max_dot=5):
+    image = image.convert("RGB")
+    image.thumbnail((450, 600))
 
     rgb = np.array(image)
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
 
-    # Smooth noise while retaining facial detail.
+    # Preserve edges while reducing image noise.
     gray = cv2.bilateralFilter(gray, 7, 50, 50)
 
-    height, width = gray.shape
-
-    # Detect edges around eyes, eyebrows, nostrils, lips,
-    # and the face outline.
-    edges = cv2.Canny(gray, 35, EDGE_THRESHOLD)
-
-    # Slightly thicken edges so facial features stand out.
-    kernel = np.ones((2, 2), np.uint8)
-    edges = cv2.dilate(edges, kernel, iterations=1)
-
-    scale = min(700 / width, 850 / height)
-    draw_width = width * scale
-    draw_height = height * scale
-
-    screen = turtle.Screen()
-    screen.setup(
-        width=int(draw_width + 60),
-        height=int(draw_height + 80)
+    # Find strong edges.
+    edges = cv2.Canny(gray, 35, 90)
+    edges = cv2.dilate(
+        edges, np.ones((2, 2), np.uint8), iterations=1
     )
-    screen.title("Facial Expression Dot Art")
-    screen.bgcolor("white")
-    screen.tracer(0, 0)
 
-    pen = turtle.Turtle(visible=False)
-    pen.speed(DRAW_SPEED)
-    pen.penup()
-    pen.color("black")
+    height, width = gray.shape
+    result = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(result)
 
-    left = -draw_width / 2
-    top = draw_height / 2
+    random.seed(10)
 
-    # Pass 1: Draw facial details with small, dense dots.
-    for y in range(0, height, FEATURE_DENSITY):
-        for x in range(0, width, FEATURE_DENSITY):
-            if edges[y, x] > 0:
-                pen.goto(
-                    left + x * scale,
-                    top - y * scale
-                )
-                pen.dot(FEATURE_DOT_SIZE, "black")
+    # Add dots based on image darkness.
+    for y in range(0, height, spacing):
+        for x in range(0, width, spacing):
+            darkness = 255 - int(gray[y, x])
 
-        if y % 40 == 0:
-            screen.update()
-
-    # Pass 2: Add stippling for shadows and tonal depth.
-    for y in range(0, height, DOT_SPACING):
-        for x in range(0, width, DOT_SPACING):
-            brightness = int(gray[y, x])
-            darkness = 255 - brightness
-
-            # Avoid filling bright areas with unnecessary dots.
             if darkness < 35:
                 continue
 
-            # Keep the dots smaller near strong facial edges.
+            size = 1 + (darkness / 255) * (max_dot - 1)
+
+            # Use smaller dots along edges for sharper features.
             if edges[y, x] > 0:
-                dot_size = 1
-            else:
-                dot_size = MIN_DOT_SIZE + (
-                    darkness / 255
-                ) * (MAX_DOT_SIZE - MIN_DOT_SIZE)
+                size = min(size, 1.5)
 
-            pen.goto(
-                left + x * scale,
-                top - y * scale
+            size *= random.uniform(0.8, 1.2)
+            radius = max(0.5, size / 2)
+
+            draw.ellipse(
+                (x - radius, y - radius,
+                 x + radius, y + radius),
+                fill="black",
             )
-            pen.dot(max(1, int(dot_size)), "black")
 
-        screen.update()
+    # Add extra fine dots along edges.
+    ys, xs = np.where(edges > 0)
+    for x, y in zip(xs, ys):
+        if random.random() < 0.45:
+            draw.ellipse(
+                (x, y, x + 1, y + 1),
+                fill="black",
+            )
 
-    screen.update()
-    print("Facial detail dot sketch complete.")
-    print("Close the Turtle window to exit.")
-    screen.mainloop()
+    return result
 
 
-if __name__ == "__main__":
-    main()
+uploaded = st.file_uploader(
+    "Upload your photo",
+    type=["jpg", "jpeg", "png"],
+)
+
+spacing = st.slider(
+    "Dot density",
+    min_value=2,
+    max_value=8,
+    value=4,
+    help="Lower values create more dots and more detail.",
+)
+
+max_dot = st.slider(
+    "Maximum dot size",
+    min_value=2,
+    max_value=7,
+    value=5,
+)
+
+if uploaded is not None:
+    try:
+        original = Image.open(uploaded).convert("RGB")
+        st.subheader("Original photo")
+        st.image(original, use_container_width=True)
+
+        if st.button("Generate Dot-Art Portrait", type="primary"):
+            with st.spinner("Creating your portrait..."):
+                result = make_dot_art(original, spacing, max_dot)
+                st.session_state["dot_art"] = result
+
+    except Exception as error:
+        st.error(f"Unable to process this image: {error}")
+
+if "dot_art" in st.session_state:
+    result = st.session_state["dot_art"]
+
+    st.subheader("Your dot-art portrait")
+    st.image(result, use_container_width=True)
+
+    buffer = BytesIO()
+    result.save(buffer, format="PNG")
+
+    st.download_button(
+        "Download Dot-Art Portrait",
+        data=buffer.getvalue(),
+        file_name="facial_dot_art.png",
+        mime="image/png",
+    )
+
+st.caption(
+    "Facial details are emphasized through image-edge detection. "
+    "This is not a dedicated facial-expression recognition model."
+)
