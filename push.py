@@ -1,8 +1,8 @@
-import turtle
+##import turtle
 from pathlib import Path
 
-import cv2
-import numpy as np
+##import cv2
+##import numpy as np
 from PIL import Image
 
 IMAGE_PATH = "IMG_123.jpeg"
