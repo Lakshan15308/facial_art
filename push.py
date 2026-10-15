@@ -1,7 +1,7 @@
-###import turtle
+import turtle
 from pathlib import Path
 
-import cv2
+import opencv-python-headless   
 import numpy as np
 from PIL import Image
 
