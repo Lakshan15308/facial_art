@@ -6,15 +6,15 @@ from PIL import Image, ImageDraw
 from io import BytesIO
 
 st.set_page_config(
-    page_title="Facial Expression Dot Art",
+    page_title="Dot Art Application",
     page_icon="🎨",
     layout="centered",
 )
 
-st.title("🎨 Facial Expression Dot Art")
+st.title("Dot Art Application")
 st.write(
     "Upload a portrait to create a dot-art sketch "
-    "with highlighted eyes, eyebrows, nose, lips, and outlines."
+    "Created by Lakshan Siriwardhana"
 )
 
 
@@ -82,16 +82,16 @@ uploaded = st.file_uploader(
 
 spacing = st.slider(
     "Dot density",
-    min_value=2,
-    max_value=8,
+    min_value=1,
+    max_value=10,
     value=4,
     help="Lower values create more dots and more detail.",
 )
 
 max_dot = st.slider(
     "Maximum dot size",
-    min_value=2,
-    max_value=7,
+    min_value=1,
+    max_value=10,
     value=5,
 )
 
